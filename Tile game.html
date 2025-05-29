@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sliding Tile Puzzle</title>
+  <meta name="description" content="Play a fun Sliding Tile Puzzle game! Arrange tiles 1-15 in order. Share with friends!">
+  <meta property="og:title" content="Sliding Tile Puzzle">
+  <meta property="og:description" content="Challenge yourself with this fun sliding puzzle game. Can you solve it in the fewest moves?">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="https://via.placeholder.com/1200x630?text=Sliding+Tile+Puzzle">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧩</text></svg>">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+  <style>
+    body {
+      font-family: 'Poppins', sans-serif;
+      background: linear-gradient(135deg, #8b5cf6, #ec4899);
+      position: relative;
+      overflow: auto;
+    }
+    body::before {
+      content: '';
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40"><path fill="%23ffffff" fill-opacity="0.1" d="M0 0h20v20H0zm20 20h20v20H20z"/></svg>') repeat;
+      z-index: -1;
+    }
+    .tile {
+      width: 90px;
+      height: 90px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 28px;
+      font-weight: bold;
+      cursor: pointer;
+      border-radius: 8px;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    .tile.empty {
+      background-color: transparent;
+      cursor: default;
+      box-shadow: none;
+    }
+    .tile:not(.empty) {
+      background: linear-gradient(45deg, #3b82f6, #60a5fa);
+      color: white;
+    }
+    .tile:hover:not(.empty) {
+      background: #93c5fd;
+      transform: scale(1.05);
+      box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);
+    }
+    .tile:active:not(.empty) {
+      transform: scale(0.95);
+    }
+    .slide {
+      transition: transform 0.2s ease-in-out;
+    }
+    .btn {
+      transition: transform 0.2s ease, background 0.3s ease;
+    }
+    .btn:hover {
+      transform: scale(1.1);
+    }
+    @media (max-width: 640px) {
+      .tile {
+        width: 70px;
+        height: 70px;
+        font-size: 24px;
+      }
+    }
+  </style>
+</head>
+<body class="flex flex-col items-center justify-center min-h-screen text-white">
+  <h1 class="text-4xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-pink-600">Sliding Tile Puzzle</h1>
+  <p class="text-xl mb-6">Arrange tiles 1-15 in order. Moves: <span id="moveCount" class="font-bold">0</span></p>
+  <div id="gameBoard" class="grid grid-cols-4 gap-2 bg-gray-800 bg-opacity-50 p-4 rounded-xl shadow-lg"></div>
+  <div class="mt-6 flex space-x-4">
+    <button id="newGame" class="btn bg-purple-600 text-white px-6 py-3 rounded-lg shadow-md hover:bg-purple-700">New Game</button>
+    <button id="shareGame" class="btn bg-pink-600 text-white px-6 py-3 rounded-lg shadow-md hover:bg-pink-700">Share</button>
+  </div>
+
+  <script>
+    const boardSize = 4;
+    const tiles = [...Array(boardSize * boardSize).keys()].map(i => i + 1);
+    tiles[tiles.length - 1] = 0; // 0 represents the empty tile
+    let moveCount = 0;
+
+    function createBoard() {
+      const board = document.getElementById('gameBoard');
+      board.innerHTML = '';
+      tiles.forEach((tile, index) => {
+        const div = document.createElement('div');
+        div.className = `tile ${tile === 0 ? 'empty' : ''} slide`;
+        div.textContent = tile === 0 ? '' : tile;
+        div.addEventListener('click', () => moveTile(index));
+        board.appendChild(div);
+      });
+      updateMoveCount();
+    }
+
+    function shuffleTiles() {
+      for (let i = tiles.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [tiles[i], tiles[j]] = [tiles[j], tiles[i]];
+      }
+      while (!isSolvable() || isSolved()) {
+        shuffleTiles();
+      }
+      moveCount = 0;
+      createBoard();
+    }
+
+    function isSolvable() {
+      let inversions = 0;
+      for (let i = 0; i < tiles.length - 1; i++) {
+        for (let j = i + 1; j < tiles.length; j++) {
+          if (tiles[i] && tiles[j] && tiles[i] > tiles[j]) inversions++;
+        }
+      }
+      const emptyRow = Math.floor(tiles.indexOf(0) / boardSize) + 1;
+      return (inversions + emptyRow) % 2 === 0;
+    }
+
+    function moveTile(index) {
+      const emptyIndex = tiles.indexOf(0);
+      const row = Math.floor(index / boardSize);
+      const col = index % boardSize;
+      const emptyRow = Math.floor(emptyIndex / boardSize);
+      const emptyCol = emptyIndex % boardSize;
+
+      if ((Math.abs(row - emptyRow) === 1 && col === emptyCol) || 
+          (Math.abs(col - emptyCol) === 1 && row === emptyRow)) {
+        [tiles[index], tiles[emptyIndex]] = [tiles[emptyIndex], tiles[index]];
+        moveCount++;
+        createBoard();
+        if (isSolved()) {
+          setTimeout(() => {
+            confetti({
+              particleCount: 100,
+              spread: 70,
+              origin: { y: 0.6 }
+            });
+            alert(`Congratulations! You solved the puzzle in ${moveCount} moves!`);
+          }, 100);
+        }
+      }
+    }
+
+    function isSolved() {
+      for (let i = 0; i < tiles.length - 1; i++) {
+        if (tiles[i] !== i + 1) return false;
+      }
+      return tiles[tiles.length - 1] = 0;
+    }
+
+    function updateMoveCount() {
+      document.getElementById('moveCount').textContent = moveCount;
+    }
+
+    document.getElementById('shareGame').addEventListener('click', () => {
+      const url = window.location.href;
+      navigator.clipboard.writeText(url).then(() => {
+        alert('Game URL copied to clipboard! Share it with your friends!');
+      }).catch(() => {
+        alert('Failed to copy URL. Please copy this link: ' + url);
+      });
+    });
+
+    document.getElementById('newGame').addEventListener('click', shuffleTiles);
+
+    // Initialize game
+    shuffleTiles();
+  </script>
+</body>
+</html>
